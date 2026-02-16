@@ -30,7 +30,7 @@ function DraggableComponent({ type, icon, label, preview, props, children }: Dra
   return (
     <div
       ref={drag}
-      className={`cursor-move bg-white border-2 border-slate-200 rounded-lg p-4 hover:border-blue-400 hover:shadow-md transition-all ${
+      className={`cursor-move bg-white border-2 border-slate-200 rounded-lg p-4 hover:border-blue-400 hover:shadow-md transition-all dark:bg-slate-950 dark:border-slate-800 ${
         isDragging ? 'opacity-50' : 'opacity-100'
       }`}
     >
@@ -38,9 +38,9 @@ function DraggableComponent({ type, icon, label, preview, props, children }: Dra
         <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
           {icon}
         </div>
-        <span className="text-sm text-slate-700">{label}</span>
+        <span className="text-sm text-slate-700 dark:text-slate-200">{label}</span>
       </div>
-      <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+      <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 dark:bg-slate-900 dark:border-slate-800">
         {preview}
       </div>
     </div>

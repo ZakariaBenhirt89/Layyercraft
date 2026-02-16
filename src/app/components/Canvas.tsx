@@ -109,14 +109,14 @@ export function Canvas({
           },
         });
       }}
-      className={`mx-auto ${getCanvasWidth()} bg-white rounded-xl shadow-2xl p-8 min-h-[600px] transition-all`}
+      className={`mx-auto ${getCanvasWidth()} bg-white rounded-xl shadow-2xl p-8 min-h-[600px] transition-all dark:bg-slate-950 dark:shadow-black/40`}
     >
       {components.length === 0 ? (
         <div className="flex items-center justify-center h-full min-h-[500px]">
           <div className="text-center">
-            <div className="inline-block p-4 bg-slate-100 rounded-full mb-4">
+            <div className="inline-block p-4 bg-slate-100 rounded-full mb-4 dark:bg-slate-900">
               <svg
-                className="w-12 h-12 text-slate-400"
+                className="w-12 h-12 text-slate-400 dark:text-slate-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -129,8 +129,8 @@ export function Canvas({
                 />
               </svg>
             </div>
-            <h3 className="text-xl text-slate-700 mb-2">Start Building</h3>
-            <p className="text-slate-500">
+            <h3 className="text-xl text-slate-700 mb-2 dark:text-slate-200">Start Building</h3>
+            <p className="text-slate-500 dark:text-slate-400">
               Drag and drop components from the left sidebar to get started
             </p>
           </div>

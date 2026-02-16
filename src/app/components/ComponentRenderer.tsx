@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react';
 import type { ComponentNode } from '../../types/component';
 import { DropZone } from './DropZone';
+import { isContainerType } from '../../utils/componentTypes';
 
 type ComponentRendererProps = {
   components: ComponentNode[];
@@ -11,8 +12,6 @@ type ComponentRendererProps = {
 };
 
 type DragItem = { type: string; props: Record<string, any>; children?: string };
-
-const isContainerType = (type: string) => type === 'Container' || type === 'Card';
 
 const normalizeDragItem = (item: DragItem) => ({
   type: item.type,
@@ -192,7 +191,7 @@ const renderContainer = (
       >
         {children}
         {!node.children.length ? (
-          <p className="text-slate-400 text-sm pointer-events-none">{placeholder}</p>
+          <p className="text-slate-400 text-sm pointer-events-none dark:text-slate-500">{placeholder}</p>
         ) : null}
       </DropZone>
       <button

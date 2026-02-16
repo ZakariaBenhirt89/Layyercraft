@@ -41,6 +41,27 @@ export function updateComponent(
   });
 }
 
+export function mergeComponentUpdates(
+  tree: ComponentNode[],
+  id: string,
+  updates: Partial<ComponentNode>
+): ComponentNode[] {
+  return tree.map((node) => {
+    if (node.id === id) {
+      return {
+        ...node,
+        ...updates,
+        props: updates.props ? { ...node.props, ...updates.props } : node.props,
+        layoutConfig: updates.layoutConfig
+          ? { ...node.layoutConfig, ...updates.layoutConfig }
+          : node.layoutConfig,
+        children: updates.children ?? node.children,
+      };
+    }
+    return { ...node, children: mergeComponentUpdates(node.children, id, updates) };
+  });
+}
+
 export function findComponent(tree: ComponentNode[], id: string): ComponentNode | null {
   for (const node of tree) {
     if (node.id === id) return node;
