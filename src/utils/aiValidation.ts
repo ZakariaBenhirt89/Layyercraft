@@ -1,5 +1,5 @@
 import type { ComponentNode } from '../types/component';
-import { ALLOWED_COMPONENT_TYPES } from './componentTypes';
+import { ALLOWED_COMPONENT_TYPES, isContainerType } from './componentTypes';
 
 const MAX_NODES = 50;
 const MAX_DEPTH = 5;
@@ -40,9 +40,12 @@ const normalizeNode = (
   }
 
   const childrenArray = Array.isArray(node.children) ? node.children : [];
-  const normalizedChildren = childrenArray.map((child, childIndex) =>
-    normalizeNode(child, depth + 1, childIndex, errors)
-  );
+  if (!isContainerType(type) && childrenArray.length > 0) {
+    errors.push(`Component type ${type} cannot have children.`);
+  }
+  const normalizedChildren = isContainerType(type)
+    ? childrenArray.map((child, childIndex) => normalizeNode(child, depth + 1, childIndex, errors))
+    : [];
 
   return {
     ...node,

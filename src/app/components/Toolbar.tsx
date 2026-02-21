@@ -53,7 +53,7 @@ export function Toolbar({
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center dark:bg-slate-900 dark:border-slate-800">
             <img src="/logo/logowhite.svg" alt="Layercraft logo" className="h-7 w-7 block dark:hidden" />
-            <img src="/logo/logodark.svg" alt="Layercraft logo" className="h-7 w-7 hidden dark:block" />
+            <img src="/logo/soso.svg" alt="Layercraft logo" className="h-7 w-7 hidden dark:block" />
           </div>
           <div>
             <h1 className="text-xl text-slate-900 dark:text-slate-100">Layercraft</h1>
@@ -62,6 +62,7 @@ export function Toolbar({
         </div>
 
         {/* Center - View Mode Selector */}
+
         <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg dark:bg-slate-900">
           <button
             onClick={() => setViewMode('desktop')}

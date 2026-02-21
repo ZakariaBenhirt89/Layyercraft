@@ -5,12 +5,15 @@ import type { AIChatMessage, AIResponse, AIModification } from '../../types/aiCh
 import { sendAIChatRequest } from '../../utils/aiChat';
 import { validateAIComponents } from '../../utils/aiValidation';
 
-const MODEL_OPTIONS = [
+const CLOUD_MODEL_OPTIONS = [
   { label: 'Gemini 3 Flash', value: 'google/gemini-3-flash-preview' },
   { label: 'Claude Sonnet 4.5', value: 'anthropic/claude-sonnet-4-5-20250929' },
   { label: 'GPT-4o', value: 'openai/gpt-4o' },
   { label: 'Gemini 2.0 Flash', value: 'google/gemini-2.0-flash' },
 ];
+
+type ModelOption = { label: string; value: string };
+type OllamaStatus = 'loading' | 'ok' | 'unavailable';
 
 type AIChatPanelProps = {
   components: ComponentNode[];
@@ -79,7 +82,9 @@ export function AIChatPanel({
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [lastPrompt, setLastPrompt] = useState('');
-  const [selectedModel, setSelectedModel] = useState(MODEL_OPTIONS[0].value);
+  const [selectedModel, setSelectedModel] = useState(CLOUD_MODEL_OPTIONS[0].value);
+  const [ollamaModels, setOllamaModels] = useState<ModelOption[]>([]);
+  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus>('loading');
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -91,6 +96,28 @@ export function AIChatPanel({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isGenerating]);
+
+  useEffect(() => {
+    const fetchOllamaModels = async () => {
+      try {
+        const response = await fetch('/api/ollama/models');
+        if (!response.ok) {
+          setOllamaStatus('unavailable');
+          return;
+        }
+        const data = (await response.json()) as { models?: ModelOption[]; error?: string };
+        if (data.error || !data.models) {
+          setOllamaStatus('unavailable');
+          return;
+        }
+        setOllamaModels(data.models);
+        setOllamaStatus(data.models.length > 0 ? 'ok' : 'unavailable');
+      } catch {
+        setOllamaStatus('unavailable');
+      }
+    };
+    fetchOllamaModels();
+  }, []);
 
   const sendMessage = async (prompt: string) => {
     if (!prompt.trim() || isGenerating) return;
@@ -170,12 +197,39 @@ export function AIChatPanel({
               onChange={(event) => setSelectedModel(event.target.value)}
               className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
             >
-              {MODEL_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
+              <optgroup label="Cloud">
+                {CLOUD_MODEL_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </optgroup>
+              {ollamaModels.length > 0 ? (
+                <optgroup label="Local (Ollama)">
+                  {ollamaModels.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
             </select>
+            <span
+              title={
+                ollamaStatus === 'loading'
+                  ? 'Checking Ollama...'
+                  : ollamaStatus === 'ok'
+                    ? `Ollama connected — ${ollamaModels.length} model${ollamaModels.length === 1 ? '' : 's'}`
+                    : 'Ollama not running'
+              }
+              className={`h-2 w-2 rounded-full ${
+                ollamaStatus === 'loading'
+                  ? 'bg-slate-300 dark:bg-slate-600'
+                  : ollamaStatus === 'ok'
+                    ? 'bg-green-500'
+                    : 'bg-red-400'
+              }`}
+            />
             <button
               onClick={() => lastPrompt && sendMessage(lastPrompt)}
               className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 transition-colors hover:border-blue-400 hover:text-blue-600 dark:border-slate-800 dark:text-slate-300"

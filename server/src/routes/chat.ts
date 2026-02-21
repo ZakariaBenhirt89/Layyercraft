@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { generateObject } from 'ai';
+import { generateObject, generateText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { buildSystemPrompt } from '../prompts/system.js';
+
+const defaultModel = process.env.DEFAULT_MODEL ?? 'anthropic/claude-sonnet-4-5-20250929';
 
 const chatRequestSchema = z.object({
   messages: z.array(
@@ -15,7 +17,25 @@ const chatRequestSchema = z.object({
   componentTree: z.unknown().default([]),
   selectedComponentId: z.string().nullish(),
   viewMode: z.string().default('desktop'),
-  model: z.string().default('anthropic/claude-sonnet-4-5-20250929'),
+  model: z.string().default(defaultModel),
+});
+
+const layoutConfigSchema = z.object({
+  flexDirection: z.enum(['row', 'column']).optional(),
+  justifyContent: z.string().optional(),
+  alignItems: z.string().optional(),
+  gap: z.string().optional(),
+  padding: z.string().optional(),
+  width: z.string().optional(),
+  height: z.string().optional(),
+});
+
+const behaviorSchema = z.object({
+  id: z.string(),
+  trigger: z.enum(['onClick', 'onHover', 'onFocus', 'onLoad']),
+  action: z.enum(['navigate', 'toggle', 'submit', 'custom']),
+  target: z.string().optional(),
+  params: z.record(z.any()).optional(),
 });
 
 const componentNodeSchema: z.ZodType = z.lazy(() =>
@@ -24,12 +44,26 @@ const componentNodeSchema: z.ZodType = z.lazy(() =>
     type: z.enum(['Container', 'Card', 'Button', 'Text', 'Heading', 'Input', 'Image']),
     props: z.record(z.any()),
     children: z.array(componentNodeSchema).default([]),
+    behaviors: z.array(behaviorSchema).optional(),
+    layoutConfig: layoutConfigSchema.optional(),
+    parentId: z.string().nullable().optional(),
+  }),
+);
+
+const componentUpdateSchema: z.ZodType = z.lazy(() =>
+  z.object({
+    type: z.enum(['Container', 'Card', 'Button', 'Text', 'Heading', 'Input', 'Image']).optional(),
+    props: z.record(z.any()).optional(),
+    children: z.array(componentNodeSchema).optional(),
+    behaviors: z.array(behaviorSchema).optional(),
+    layoutConfig: layoutConfigSchema.optional(),
+    parentId: z.string().nullable().optional(),
   }),
 );
 
 const modificationSchema = z.object({
   componentId: z.string(),
-  updates: z.record(z.any()),
+  updates: componentUpdateSchema,
 });
 
 const aiResponseSchema = z.object({
@@ -49,7 +83,18 @@ function resolveModel(modelId: string) {
     const google = createGoogleGenerativeAI({ apiKey: geminiKey });
     // Strip the "google/" prefix — AI SDK expects just "gemini-2.0-flash"
     const googleModelId = modelId.replace('google/', '');
-    return google(googleModelId);
+    return { model: google(googleModelId), useTextFallback: false };
+  }
+
+  // ollama/* models → local OpenAI-compatible endpoint
+  if (modelId.startsWith('ollama/')) {
+    const baseURL = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
+    const ollama = createOpenAI({
+      baseURL: `${baseURL.replace(/\/$/, '')}/v1`,
+      apiKey: 'ollama',
+    });
+    const ollamaModelId = modelId.replace('ollama/', '');
+    return { model: ollama(ollamaModelId), useTextFallback: true };
   }
 
   // Everything else → route through OpenRouter
@@ -61,10 +106,20 @@ function resolveModel(modelId: string) {
     baseURL: 'https://openrouter.ai/api/v1',
     apiKey: openrouterKey,
   });
-  return openrouter(modelId);
+  return { model: openrouter(modelId), useTextFallback: false };
 }
 
 export const chatRouter = Router();
+
+function extractJSON(text: string) {
+  const cleaned = text.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end === -1) {
+    throw new Error('No JSON object found in response.');
+  }
+  return JSON.parse(cleaned.slice(start, end + 1));
+}
 
 chatRouter.post('/chat', async (req, res) => {
   const parsed = chatRequestSchema.safeParse(req.body);
@@ -76,8 +131,11 @@ chatRouter.post('/chat', async (req, res) => {
   const { messages, componentTree, selectedComponentId, viewMode, model } = parsed.data;
 
   let aiModel;
+  let useTextFallback = false;
   try {
-    aiModel = resolveModel(model);
+    const resolved = resolveModel(model);
+    aiModel = resolved.model;
+    useTextFallback = resolved.useTextFallback;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Missing API key.';
     res.status(500).json({ error: message });
@@ -87,6 +145,17 @@ chatRouter.post('/chat', async (req, res) => {
   const systemPrompt = buildSystemPrompt(componentTree, selectedComponentId, viewMode);
 
   try {
+    if (useTextFallback) {
+      const result = await generateText({
+        model: aiModel,
+        messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      });
+      const extracted = extractJSON(result.text);
+      const validated = aiResponseSchema.parse(extracted);
+      res.json(validated);
+      return;
+    }
+
     const result = await generateObject({
       model: aiModel,
       schema: aiResponseSchema,
