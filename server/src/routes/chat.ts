@@ -41,7 +41,7 @@ const behaviorSchema = z.object({
 const componentNodeSchema: z.ZodType = z.lazy(() =>
   z.object({
     id: z.string(),
-    type: z.enum(['Container', 'Card', 'Button', 'Text', 'Heading', 'Input', 'Image']),
+    type: z.enum(['Container', 'Card', 'Button', 'Text', 'Heading', 'Input', 'Image', 'NavHeader']),
     props: z.record(z.any()),
     children: z.array(componentNodeSchema).default([]),
     behaviors: z.array(behaviorSchema).optional(),
@@ -52,7 +52,7 @@ const componentNodeSchema: z.ZodType = z.lazy(() =>
 
 const componentUpdateSchema: z.ZodType = z.lazy(() =>
   z.object({
-    type: z.enum(['Container', 'Card', 'Button', 'Text', 'Heading', 'Input', 'Image']).optional(),
+    type: z.enum(['Container', 'Card', 'Button', 'Text', 'Heading', 'Input', 'Image', 'NavHeader']).optional(),
     props: z.record(z.any()).optional(),
     children: z.array(componentNodeSchema).optional(),
     behaviors: z.array(behaviorSchema).optional(),

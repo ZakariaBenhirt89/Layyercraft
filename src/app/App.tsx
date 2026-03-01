@@ -8,93 +8,45 @@ import { PropertiesPanel } from './components/PropertiesPanel';
 import { AIChatPanel } from './components/AIChatPanel';
 import type { ComponentNode } from '../types/component';
 import {
-  addComponent as addNode,
-  removeComponent as removeNode,
-  updateComponent as updateNode,
-  findComponent,
-  mergeComponentUpdates,
-} from '../utils/componentTree';
-import { isContainerType } from '../utils/componentTypes';
-import { 
-  Layers, 
-  Eye
+  Layers,
+  Eye,
+  X,
 } from 'lucide-react';
-
-export type ViewMode = 'desktop' | 'tablet' | 'mobile';
+import { useBuilderStore } from '../stores/builderStore';
 
 export default function App() {
-  const [components, setComponents] = useState<ComponentNode[]>([]);
-  const [viewMode, setViewMode] = useState<ViewMode>('desktop');
-  const [showCode, setShowCode] = useState(false);
-  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
-  const [rightPanelMode, setRightPanelMode] = useState<'inspector' | 'ai'>('inspector');
+  const {
+    components,
+    viewMode,
+    showCode,
+    selectedComponentId,
+    rightPanelMode,
+    setViewMode,
+    setShowCode,
+    setRightPanelMode,
+    setSelectedComponent,
+    addComponent,
+    removeComponent,
+    clearCanvas,
+    updateComponent,
+    applyAIComponents,
+    applyAIModifications,
+    getSelectedComponent,
+  } = useBuilderStore();
 
-  const addComponent = (component: Omit<ComponentNode, 'id' | 'children'>, parentId?: string) => {
-    const newComponent: ComponentNode = {
-      ...component,
-      id: `component-${Date.now()}-${Math.random()}`,
-      children: [],
-      parentId: parentId ?? null,
-    };
-    setComponents((prev) => addNode(prev, newComponent, parentId));
-  };
+  const selectedComponent = getSelectedComponent();
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [showInspector, setShowInspector] = useState(false);
 
-  const removeComponent = (id: string) => {
-    setComponents((prev) => removeNode(prev, id));
-    if (selectedComponentId === id) {
-      setSelectedComponentId(null);
-    }
-  };
-
-  const clearCanvas = () => {
-    setComponents([]);
-    setSelectedComponentId(null);
-  };
-
-  const updateComponent = (id: string, updates: Partial<ComponentNode>) => {
-    setComponents((prev) => updateNode(prev, id, updates));
-  };
-
-  const selectedComponent = selectedComponentId
-    ? findComponent(components, selectedComponentId)
-    : null;
-
-  const applyAIComponents = (nodes: ComponentNode[]) => {
-    const parentId = selectedComponentId
-      ? isContainerType(selectedComponent?.type ?? '')
-        ? selectedComponentId
-        : selectedComponent?.parentId ?? null
-      : null;
-
-    setComponents((prev) => {
-      let next = prev;
-      nodes.forEach((node) => {
-        const component = { ...node, parentId } as ComponentNode;
-        next = addNode(next, component, parentId ?? undefined);
-      });
-      return next;
-    });
-
-    if (nodes[0]) {
-      setSelectedComponentId(nodes[0].id);
-    }
-  };
-
-  const applyAIModifications = (mods: { componentId: string; updates: Partial<ComponentNode> }[]) => {
-    setComponents((prev) => {
-      let next = prev;
-      mods.forEach((mod) => {
-        next = mergeComponentUpdates(next, mod.componentId, mod.updates);
-      });
-      return next;
-    });
-  };
+  const openLibrary = () => { setShowLibrary(true); setShowInspector(false); };
+  const openInspector = () => { setShowInspector(true); setShowLibrary(false); };
+  const closeAll = () => { setShowLibrary(false); setShowInspector(false); };
 
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
         {/* Top Toolbar */}
-        <Toolbar 
+        <Toolbar
           viewMode={viewMode}
           setViewMode={setViewMode}
           showCode={showCode}
@@ -105,13 +57,41 @@ export default function App() {
         />
 
         {/* Main Content Area */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden relative">
+
+          {/* Mobile backdrop */}
+          {(showLibrary || showInspector) && (
+            <div
+              className="md:hidden absolute inset-0 bg-black/40 z-30 backdrop-blur-[1px]"
+              onClick={closeAll}
+            />
+          )}
+
           {/* Left Sidebar - Component Library */}
-          <aside className="w-80 bg-white border-r border-slate-200 overflow-y-auto dark:bg-slate-950 dark:border-slate-800">
+          <aside
+            className={`
+              absolute inset-y-0 left-0 z-40
+              md:relative md:z-auto md:translate-x-0
+              w-80 min-w-[320px]
+              bg-white dark:bg-slate-950
+              border-r border-slate-200 dark:border-slate-800
+              overflow-y-auto
+              transition-transform duration-200 ease-out
+              ${showLibrary ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
+            `}
+          >
             <div className="p-4 border-b border-slate-200 bg-slate-50 dark:bg-slate-900 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <Layers className="w-5 h-5 text-blue-600" />
-                <h2 className="text-lg">Components</h2>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-blue-600" />
+                  <h2 className="text-lg">Components</h2>
+                </div>
+                <button
+                  onClick={closeAll}
+                  className="md:hidden p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
               <p className="text-xs text-slate-500 mt-1 dark:text-slate-400">
                 Drag components to the canvas
@@ -121,46 +101,65 @@ export default function App() {
           </aside>
 
           {/* Center - Canvas Area */}
-          <main className="flex-1 overflow-auto bg-slate-100 p-8 dark:bg-slate-900">
-            <Canvas 
+          <main className="flex-1 overflow-auto bg-slate-100 p-4 md:p-8 dark:bg-slate-900">
+            <Canvas
               components={components}
               removeComponent={removeComponent}
               addComponent={addComponent}
               selectedComponentId={selectedComponentId}
-              selectComponent={setSelectedComponentId}
+              selectComponent={setSelectedComponent}
               viewMode={viewMode}
               showCode={showCode}
             />
           </main>
 
           {/* Right Sidebar - Layers/Properties/AI */}
-          <aside className="w-72 bg-white border-l border-slate-200 overflow-y-auto dark:bg-slate-950 dark:border-slate-800">
+          <aside
+            className={`
+              absolute inset-y-0 right-0 z-40
+              md:relative md:z-auto md:translate-x-0
+              w-72 min-w-[288px]
+              bg-white dark:bg-slate-950
+              border-l border-slate-200 dark:border-slate-800
+              overflow-y-auto
+              transition-transform duration-200 ease-out
+              ${showInspector ? 'translate-x-0 shadow-2xl' : 'translate-x-full'}
+            `}
+          >
             <div className="border-b border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Eye className="w-5 h-5 text-blue-600" />
-                  <h2 className="text-lg">{rightPanelMode === 'ai' ? 'AI' : 'Layers'}</h2>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Eye className="w-5 h-5 text-blue-600 shrink-0" />
+                  <h2 className="text-lg truncate">{rightPanelMode === 'ai' ? 'AI' : 'Layers'}</h2>
                 </div>
-                <div className="flex items-center gap-1 rounded-lg bg-white p-1 text-xs text-slate-600 shadow-sm dark:bg-slate-950 dark:text-slate-300">
+                <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1 rounded-lg bg-white p-1 text-xs text-slate-600 shadow-sm dark:bg-slate-950 dark:text-slate-300">
+                    <button
+                      onClick={() => setRightPanelMode('inspector')}
+                      className={`rounded-md px-2 py-1 ${
+                        rightPanelMode === 'inspector'
+                          ? 'bg-blue-600 text-white'
+                          : 'hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      Inspector
+                    </button>
+                    <button
+                      onClick={() => setRightPanelMode('ai')}
+                      className={`rounded-md px-2 py-1 ${
+                        rightPanelMode === 'ai'
+                          ? 'bg-blue-600 text-white'
+                          : 'hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      AI
+                    </button>
+                  </div>
                   <button
-                    onClick={() => setRightPanelMode('inspector')}
-                    className={`rounded-md px-2 py-1 ${
-                      rightPanelMode === 'inspector'
-                        ? 'bg-blue-600 text-white'
-                        : 'hover:text-slate-900 dark:hover:text-white'
-                    }`}
+                    onClick={closeAll}
+                    className="md:hidden p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500"
                   >
-                    Inspector
-                  </button>
-                  <button
-                    onClick={() => setRightPanelMode('ai')}
-                    className={`rounded-md px-2 py-1 ${
-                      rightPanelMode === 'ai'
-                        ? 'bg-blue-600 text-white'
-                        : 'hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    AI
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -223,6 +222,33 @@ export default function App() {
               </>
             )}
           </aside>
+
+          {/* Mobile floating toggle pill */}
+          <div className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-white dark:bg-slate-900 rounded-full px-2 py-1.5 shadow-xl border border-slate-200 dark:border-slate-700">
+            <button
+              onClick={() => showLibrary ? closeAll() : openLibrary()}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                showLibrary
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              Library
+            </button>
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
+            <button
+              onClick={() => showInspector ? closeAll() : openInspector()}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                showInspector
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              Inspector
+            </button>
+          </div>
         </div>
       </div>
     </DndProvider>

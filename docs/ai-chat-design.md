@@ -95,6 +95,7 @@ applyAIComponents() or applyAIModifications()  ──▶  Canvas updated
 ```typescript
 type ComponentNode = {
   id: string;
+  
   type: string;                    // One of 7 allowed types
   props: Record<string, any>;      // className, content, placeholder, src, alt
   children: ComponentNode[];       // Only Container and Card may have children

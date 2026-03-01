@@ -6,6 +6,7 @@ export const ALLOWED_COMPONENT_TYPES = [
   'Heading',
   'Input',
   'Image',
+  'NavHeader',
 ] as const;
 
 export const CONTAINER_COMPONENT_TYPES = new Set(['Container', 'Card']);
